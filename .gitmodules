@@ -6,3 +6,7 @@
 	path = third_party/CosyVoice2
 	url = https://github.com/FunAudioLLM/CosyVoice.git
 	branch = main
+[submodule "third_party/MSAE"]
+	path = third_party/MSAE
+	url = https://github.com/WolodjaZ/MSAE.git
+	branch = main
