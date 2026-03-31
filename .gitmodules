@@ -1,0 +1,8 @@
+[submodule "third_party/Qwen3-TTS"]
+	path = third_party/Qwen3-TTS
+	url = https://github.com/QwenLM/Qwen3-TTS.git
+	branch = main
+[submodule "third_party/CosyVoice2"]
+	path = third_party/CosyVoice2
+	url = https://github.com/FunAudioLLM/CosyVoice.git
+	branch = main
