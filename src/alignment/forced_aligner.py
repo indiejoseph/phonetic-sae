@@ -13,6 +13,7 @@ from typing import Optional
 
 import torch
 import torchaudio
+from qwen_asr import Qwen3ForcedAligner as QwenAligner
 
 logger = logging.getLogger(__name__)
 
@@ -90,75 +91,38 @@ class QwenForcedAligner:
         self.device = device
         self.language = language
 
+        # Map language codes to Qwen API language names
+        self.language_names = {
+            "en": "English",
+            "zh": "Chinese",
+            "yue": "Cantonese",
+        }
+
         if language not in self.PHONEME_SETS:
             raise ValueError(f"Unsupported language: {language}. Choose from: {list(self.PHONEME_SETS.keys())}")
 
         try:
-            from transformers import AutoModel
             logger.info(f"Loading Qwen3-ForcedAligner for {language}...")
-            self.model = AutoModel.from_pretrained(
+
+            # Use qwen_asr's Qwen3ForcedAligner directly
+            device_map = "cuda:0" if device == "cuda" else "cpu"
+            self.model = QwenAligner.from_pretrained(
                 "Qwen/Qwen3-ForcedAligner-0.6B",
-                device_map=device,
-                trust_remote_code=True,
+                dtype=torch.bfloat16,
+                device_map=device_map,
             )
-            self.model.eval()
             logger.info("✅ Forced aligner loaded successfully")
 
-            # Try to extract actual phoneme inventory from model
-            self.phoneme_set = self._extract_phoneme_set()
-            if self.phoneme_set:
-                logger.info(f"✅ Extracted {len(self.phoneme_set)} phonemes from model")
-            else:
-                logger.warning(f"⚠️ Could not extract phoneme set from model, using defaults")
-                self.phoneme_set = self.PHONEME_SETS[language]
+            # Use default phoneme sets (model doesn't expose them directly)
+            self.phoneme_set = self.PHONEME_SETS[language]
+            logger.info(f"✅ Using {len(self.phoneme_set)} phonemes for {language}")
 
-        except ImportError:
-            logger.error("transformers library required: pip install transformers")
+        except ImportError as e:
+            logger.error(f"qwen_asr library required: pip install qwen-asr. Error: {e}")
             raise
         except Exception as e:
             logger.error(f"Failed to load Qwen3-ForcedAligner: {e}")
             raise
-
-    def _extract_phoneme_set(self) -> Optional[list[str]]:
-        """Extract the actual phoneme inventory from the model.
-
-        Returns:
-            List of phonemes if available, None otherwise
-        """
-        try:
-            # Try multiple possible attribute names
-            phoneme_candidates = [
-                "phonemes",
-                "phoneme_set",
-                "phoneme_inventory",
-                "vocab",
-                "phoneme_vocab",
-                f"phonemes_{self.language}",
-                f"inventory_{self.language}",
-            ]
-
-            for attr in phoneme_candidates:
-                if hasattr(self.model, attr):
-                    vocab = getattr(self.model, attr)
-                    if isinstance(vocab, (list, set)):
-                        logger.info(f"Found phoneme set via model.{attr}")
-                        return list(vocab)
-
-            # Try config attributes
-            if hasattr(self.model, "config"):
-                for attr in phoneme_candidates:
-                    if hasattr(self.model.config, attr):
-                        vocab = getattr(self.model.config, attr)
-                        if isinstance(vocab, (list, set)):
-                            logger.info(f"Found phoneme set via model.config.{attr}")
-                            return list(vocab)
-
-            logger.warning("Could not find phoneme set in model attributes")
-            return None
-
-        except Exception as e:
-            logger.warning(f"Error extracting phoneme set: {e}")
-            return None
 
     def align(
         self,
@@ -167,7 +131,7 @@ class QwenForcedAligner:
         audio_tensor: Optional[torch.Tensor] = None,
         sample_rate: int = 16000,
     ) -> PhonemeAlignment:
-        """Align text/phonemes to audio frames.
+        """Align text/phonemes to audio frames using Qwen3-ForcedAligner.
 
         Args:
             text: Input text (transcript)
@@ -178,50 +142,85 @@ class QwenForcedAligner:
         Returns:
             PhonemeAlignment object with phoneme sequence and frame boundaries
         """
-        # Load audio
+        # Prepare audio input
         if audio_path is not None:
+            audio_input = str(audio_path)
             audio_tensor, sr = torchaudio.load(audio_path)
             if sr != sample_rate:
                 resample = torchaudio.transforms.Resample(sr, sample_rate)
                 audio_tensor = resample(audio_tensor)
-        elif audio_tensor is None:
+        elif audio_tensor is not None:
+            audio_input = audio_tensor
+            # Ensure audio is mono
+            if audio_tensor.dim() > 1:
+                audio_tensor = audio_tensor.mean(dim=0, keepdim=True)
+        else:
             raise ValueError("Either audio_path or audio_tensor must be provided")
 
-        # Ensure audio is mono and on device
-        if audio_tensor.dim() > 1:
-            audio_tensor = audio_tensor.mean(dim=0, keepdim=True)
-        audio_tensor = audio_tensor.to(self.device)
+        # Get language name for Qwen API
+        language_name = self.language_names.get(self.language, self.language)
 
-        logger.info(f"Aligning text (len={len(text)}) to audio (duration={audio_tensor.shape[1]/sample_rate:.2f}s)")
+        logger.info(f"Aligning text (len={len(text)}) in {language_name}")
 
         try:
-            # Call forced aligner
-            with torch.no_grad():
-                result = self.model.align(
-                    text=text,
-                    audio=audio_tensor,
-                    language=self.language,
-                    sample_rate=sample_rate,
-                )
+            # Call Qwen3-ForcedAligner.align()
+            # Returns: list of lists of objects with .text, .start_time, .end_time
+            results = self.model.align(
+                audio=audio_input,
+                text=text,
+                language=language_name,
+            )
         except Exception as e:
             logger.error(f"Alignment failed: {e}")
             raise
 
-        # Parse result
-        phonemes = result.get("phonemes", [])
-        boundaries = result.get("boundaries", [])  # [(start_frame, end_frame), ...]
-        duration_ms = audio_tensor.shape[1] / sample_rate * 1000
+        # Parse results: results[0] is list of phoneme objects
+        # Each object has .text (phoneme), .start_time, .end_time (in seconds)
+        if not results or not results[0]:
+            logger.warning("No alignment results returned")
+            return PhonemeAlignment(
+                phonemes=[],
+                frame_boundaries=[],
+                frame_to_phoneme=[],
+                duration_ms=0,
+            )
+
+        alignment_list = results[0]
+        phonemes = []
+        boundaries = []
+
+        # Convert time boundaries to frames
+        for item in alignment_list:
+            phoneme_text = item.text
+            start_time = float(item.start_time)  # in seconds
+            end_time = float(item.end_time)      # in seconds
+
+            phonemes.append(phoneme_text)
+
+            # Convert to frame indices (assuming sample_rate frames per second)
+            start_frame = int(start_time * sample_rate)
+            end_frame = int(end_time * sample_rate)
+            boundaries.append((start_frame, end_frame))
+
+        # Get total duration from last boundary or from tensor
+        if boundaries:
+            duration_ms = boundaries[-1][1] / sample_rate * 1000
+        else:
+            duration_ms = 0
 
         # Create frame-to-phoneme mapping
-        num_frames = audio_tensor.shape[1]
-        frame_to_phoneme = [0] * num_frames  # Default to first phoneme
+        if boundaries:
+            num_frames = boundaries[-1][1]
+            frame_to_phoneme = [0] * num_frames
 
-        for phoneme_idx, (start_frame, end_frame) in enumerate(boundaries):
-            for frame_idx in range(start_frame, min(end_frame, num_frames)):
-                frame_to_phoneme[frame_idx] = phoneme_idx
+            for phoneme_idx, (start_frame, end_frame) in enumerate(boundaries):
+                for frame_idx in range(start_frame, min(end_frame, num_frames)):
+                    frame_to_phoneme[frame_idx] = phoneme_idx
+        else:
+            frame_to_phoneme = []
 
         logger.info(
-            f"✅ Aligned {len(phonemes)} phonemes to {num_frames} frames "
+            f"✅ Aligned {len(phonemes)} phonemes "
             f"(duration: {duration_ms:.0f}ms)"
         )
 
