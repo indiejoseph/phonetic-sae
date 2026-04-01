@@ -95,58 +95,47 @@ class Qwen3TTSWrapper:
     def get_layer_accessor(self):
         """Return a custom layer accessor function for this model.
 
-        Qwen3-TTS complex wrapper structure:
-        - Outer: Qwen3TTSModel (from qwen_tts)
-        - Middle: model.model may be PEFT-wrapped
-        - Base: model.model.base_model is actual Qwen3TTSForConditionalGeneration
-        - Layers: base_model.transformer.h[i] or similar
+        Qwen3-TTS layer structure (discovered via inspection):
+        Qwen3TTSModel (qwen_tts wrapper)
+          └── .model → Qwen3TTSForConditionalGeneration
+              └── .talker → Qwen3TTSTalkerForConditionalGeneration (PEFT-wrapped)
+                  └── .model → Qwen3TTSTalkerModel
+                      └── .layers[i] ← TARGET LAYERS
         """
         def accessor(model, layer_idx: int) -> nn.Module:
-            """Access Qwen3-TTS talker layers through wrapper layers."""
+            """Access Qwen3-TTS talker layers through the deep wrapper structure."""
             try:
-                # Unwrap the model step by step
-                model_to_inspect = model
-                unwrap_steps = [
-                    ("model", "unwrap qwen_tts wrapper"),
-                    ("base_model", "unwrap PEFT wrapper"),
-                ]
+                # Navigate through the known structure
+                # Step 1: model.model (unwrap qwen_tts wrapper)
+                if not hasattr(model, "model"):
+                    raise AttributeError(f"{type(model).__name__} has no 'model' attribute")
+                inner = model.model
+                logger.debug(f"  Step 1: model.model → {type(inner).__name__}")
 
-                for attr, desc in unwrap_steps:
-                    if hasattr(model_to_inspect, attr):
-                        model_to_inspect = getattr(model_to_inspect, attr)
-                        logger.debug(f"  → {desc}: {type(model_to_inspect).__name__}")
+                # Step 2: model.model.talker (access talker component)
+                if not hasattr(inner, "talker"):
+                    raise AttributeError(f"{type(inner).__name__} has no 'talker' attribute")
+                talker = inner.talker
+                logger.debug(f"  Step 2: model.talker → {type(talker).__name__}")
 
-                # Try different possible layer structures on unwrapped model
-                # Qwen2-style: model.transformer.h[i]
-                if hasattr(model_to_inspect, "transformer") and hasattr(model_to_inspect.transformer, "h"):
-                    layer = model_to_inspect.transformer.h[layer_idx]
-                    logger.info(f"✓ Accessing layers via model.transformer.h[{layer_idx}]")
-                    return layer
+                # Step 3: Unwrap PEFT if present (model.model.talker.base_model)
+                if hasattr(talker, "base_model"):
+                    talker = talker.base_model
+                    logger.debug(f"  Step 3: unwrap PEFT → {type(talker).__name__}")
 
-                # HuggingFace style: model.model.layers[i]
-                elif hasattr(model_to_inspect, "model") and hasattr(model_to_inspect.model, "layers"):
-                    layer = model_to_inspect.model.layers[layer_idx]
-                    logger.info(f"✓ Accessing layers via model.model.layers[{layer_idx}]")
-                    return layer
+                # Step 4: model.model.talker.model (access talker model)
+                if not hasattr(talker, "model"):
+                    raise AttributeError(f"{type(talker).__name__} has no 'model' attribute")
+                talker_model = talker.model
+                logger.debug(f"  Step 4: talker.model → {type(talker_model).__name__}")
 
-                # Direct access: model.layers[i]
-                elif hasattr(model_to_inspect, "layers"):
-                    layer = model_to_inspect.layers[layer_idx]
-                    logger.info(f"✓ Accessing layers via model.layers[{layer_idx}]")
-                    return layer
+                # Step 5: Access layers (model.model.talker.model.layers[i])
+                if not hasattr(talker_model, "layers"):
+                    raise AttributeError(f"{type(talker_model).__name__} has no 'layers' attribute")
 
-                else:
-                    # As last resort, check _modules dict
-                    if hasattr(model_to_inspect, "_modules"):
-                        layer_modules = [k for k in model_to_inspect._modules.keys()
-                                       if k.startswith("layer") or k.startswith("h")]
-                        if layer_modules:
-                            logger.warning(f"Found layer-like modules: {layer_modules[:5]}")
-
-                    raise AttributeError(
-                        f"Cannot find layer structure in {type(model_to_inspect).__name__}. "
-                        f"Tried: transformer.h, model.layers, layers"
-                    )
+                layer = talker_model.layers[layer_idx]
+                logger.info(f"✓ Found layer {layer_idx} via model.model.talker.model.layers[{layer_idx}]")
+                return layer
 
             except (AttributeError, IndexError, TypeError) as e:
                 logger.error(f"Cannot access layer {layer_idx}: {e}")
