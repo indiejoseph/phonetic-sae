@@ -75,17 +75,49 @@ class Qwen3TTSWrapper:
             logger.info(f"✅ Qwen3-TTS model loaded on {device_map} with dtype {self.dtype}")
 
             # Load tokenizer for text encoding
-            # Use Qwen3 tokenizer (Qwen3-TTS is based on Qwen3)
+            # Try loading tokenizer from model repo (which has vocab.json and tokenizer.json)
+            from transformers import AutoTokenizer
+
+            self.tokenizer = None
+
+            # First, try loading from the same model repo as TTS
             try:
-                from transformers import AutoTokenizer
                 self.tokenizer = AutoTokenizer.from_pretrained(
-                    "Qwen/Qwen3-7B",  # Reference tokenizer (same as Qwen3-TTS uses)
+                    str(self.model_path),
                     trust_remote_code=True,
                 )
-                logger.info(f"✅ Tokenizer loaded")
+                logger.info(f"✅ Tokenizer loaded from {self.model_path}")
             except Exception as e:
-                logger.warning(f"Failed to load tokenizer: {e}. Activation capture will not work.")
-                self.tokenizer = None
+                logger.debug(f"Could not load tokenizer from model repo: {e}")
+
+            # Fallback: Try other Qwen tokenizers
+            if self.tokenizer is None:
+                tokenizer_candidates = [
+                    "Qwen/Qwen2.5-7B",      # Qwen2.5 tokenizer
+                    "Qwen/Qwen2-7B",        # Qwen2 tokenizer
+                    "Qwen/Qwen-7B",         # Original Qwen tokenizer
+                ]
+
+                for tokenizer_id in tokenizer_candidates:
+                    try:
+                        self.tokenizer = AutoTokenizer.from_pretrained(
+                            tokenizer_id,
+                            trust_remote_code=True,
+                        )
+                        logger.info(f"✅ Tokenizer loaded from {tokenizer_id}")
+                        break
+                    except Exception as e:
+                        logger.debug(f"Could not load tokenizer from {tokenizer_id}: {e}")
+                        continue
+
+            # Last resort: try processor from model
+            if self.tokenizer is None:
+                logger.warning("Could not load tokenizer from standard sources. Trying processor from model...")
+                if hasattr(self.model, "processor"):
+                    self.tokenizer = self.model.processor
+                    logger.info("✅ Using model's processor as tokenizer")
+                else:
+                    logger.warning("⚠️ No tokenizer or processor available. Activation capture will not work.")
 
         except ImportError as e:
             logger.error(f"qwen_tts library required: pip install qwen-tts. Error: {e}")
