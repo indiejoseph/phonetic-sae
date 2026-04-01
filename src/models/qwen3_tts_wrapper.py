@@ -95,23 +95,30 @@ class Qwen3TTSWrapper:
     def get_layer_accessor(self):
         """Return a custom layer accessor function for this model.
 
-        Qwen3-TTS has layers at: model.talker.layers[i].mlp
+        Qwen3-TTS wrapper structure:
+        - Outer: Qwen3TTSModel (wrapper from qwen_tts)
+        - Inner: model.model contains actual Qwen3TTSModel with talker
+        - Layers: model.model.talker.layers[i].mlp
         """
         def accessor(model, layer_idx: int) -> nn.Module:
-            """Access Qwen3-TTS layers."""
+            """Access Qwen3-TTS layers through wrapper."""
             try:
-                # Qwen3-TTS structure
-                if hasattr(model, "talker"):
+                # The qwen_tts.Qwen3TTSModel is a wrapper
+                # The actual model with talker is at model.model
+                if hasattr(model, "model") and hasattr(model.model, "talker"):
+                    return model.model.talker.layers[layer_idx]
+                # Fallback: try direct talker access
+                elif hasattr(model, "talker"):
                     return model.talker.layers[layer_idx]
                 else:
                     raise AttributeError(
-                        f"Model {type(model).__name__} does not have 'talker' attribute. "
-                        f"Expected: Qwen3TTSModel with talker.layers[{layer_idx}]"
+                        f"Cannot find talker in {type(model).__name__}. "
+                        f"Checked: model.model.talker and model.talker"
                     )
             except (AttributeError, IndexError) as e:
                 logger.error(
                     f"Cannot access layer {layer_idx}: {e}. "
-                    f"Available attributes: {dir(model)}"
+                    f"Available: {[a for a in dir(model) if not a.startswith('_')]}"
                 )
                 raise
 
