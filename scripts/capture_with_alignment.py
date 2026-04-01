@@ -262,13 +262,16 @@ def main():
                 f"[{sample_idx + 1}/{len(pairs)}] Processing: {pair.text[:60]}..."
             )
 
-            # Forward pass
-            input_ids = model_wrapper.tokenizer.encode(
-                pair.text, return_tensors="pt"
-            ).to(args.device)
-
+            # Forward pass - use generate() to trigger model forward pass
+            # For activation capture, we only need to trigger the forward pass,
+            # not use the actual generated audio
             with torch.no_grad():
-                _ = model(input_ids)
+                if args.model == "qwen3tts":
+                    # Use the model wrapper's generate method for base TTS mode
+                    _ = model_wrapper.generate(text=pair.text)
+                else:  # cosyvoice2
+                    # Use generate method with minimal parameters
+                    _ = model_wrapper.generate(tts_text=pair.text, prompt_text="Reference")
 
             # Collect activations
             activations = hook.collect()

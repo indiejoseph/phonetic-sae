@@ -193,17 +193,16 @@ def main():
             if batch_idx % 100 == 0:
                 logger.info(f"Processing sample {batch_idx}/{len(dataset)}")
 
-            # Run inference
+            # Run inference - use generate() to trigger model forward pass
+            # For activation capture, we only need to trigger the forward pass
             try:
                 with torch.no_grad():
                     if args.model == "qwen3tts":
-                        # Tokenize and pass to model
-                        input_ids = tokenizer.encode(
-                            sample.text, return_tensors="pt"
-                        ).to(args.device)
-                        _ = model(input_ids)
+                        # Use model_wrapper's generate() for base TTS mode
+                        # This triggers the forward pass through the talker layers
+                        _ = model_wrapper.generate(text=sample.text)
                     else:  # cosyvoice2
-                        # Use generate method
+                        # Use generate method with minimal parameters
                         _ = model_wrapper.generate(
                             tts_text=sample.text,
                             prompt_text="Reference text",

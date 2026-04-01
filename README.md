@@ -5,7 +5,10 @@ This repository implements a pipeline to discover, analyze, and intervene on pho
 ## Quick Links
 
 **Getting Started (START HERE!):**
-- 🚀 [Phase 1 Quick Start](docs/PHASE1_QUICKSTART.md) — Your first activation capture in 30 minutes ⭐ **START HERE**
+- 🚀 [Phase 1 Status](docs/PHASE1_STATUS.md) — Current implementation status & validation ⭐ **START HERE**
+- 📘 [Activation Capture Workflow](docs/ACTIVATION_CAPTURE_WORKFLOW.md) — Complete step-by-step guide with examples
+- 🔧 [Activation Capture Troubleshooting](docs/ACTIVATION_CAPTURE_TROUBLESHOOTING.md) — Quick fixes for common issues
+- 🚀 [Phase 1 Quick Start](docs/PHASE1_QUICKSTART.md) — Your first activation capture in 30 minutes
 - ✅ [Onboarding Checklist](docs/ONBOARDING_CHECKLIST.md) — Track your Phase 1 progress with checkboxes
 - 📖 [Getting Started](docs/GETTING_STARTED.md) — Installation & environment setup
 
