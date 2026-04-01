@@ -1,6 +1,7 @@
-# GPU / CUDA environment — target: cu124
-torch==2.6.0  --index-url https://download.pytorch.org/whl/cu124
-torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu124
+# GPU / CUDA environment — target: cu118
+--extra-index-url https://download.pytorch.org/whl/cu118
+torch==2.0.1
+torchaudio==2.0.2
 transformers==4.57.3
 accelerate==1.12.0
 gradio==5.4.0
@@ -10,7 +11,7 @@ librosa==0.10.2
 soundfile==0.12.1
 sox
 onnx==1.16.0
-onnxruntime-gpu==1.18.0
+onnxruntime-gpu==1.18.1
 conformer==0.3.2
 diffusers==0.29.0
 deepspeed==0.15.1
