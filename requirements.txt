@@ -44,5 +44,8 @@ WeTextProcessing==1.0.3
 sherpa_onnx
 zhon
 openai-whisper==20231117
+tqdm==4.66.5
+scikit-learn==1.5.2
+scipy==1.12.0
 
 # Optional / system packages: tensorrt, pynini, flash-attn (install via conda or vendor installers)

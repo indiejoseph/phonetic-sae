@@ -1,1 +1,31 @@
 .venv
+pretrained_models
+*.pyc
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# Data directories
+data
+checkpoints/
+outputs/
+results/
+
+# Logs and artifacts
+*.log
+wandb/
+.wandb/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

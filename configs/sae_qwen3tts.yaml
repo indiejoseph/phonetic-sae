@@ -1,0 +1,36 @@
+# SAE Configuration for Qwen3-TTS-0.6B
+# Phonetic layer SAE training hyperparameters
+
+# Model config
+d_in: 1024                          # Qwen3-TTS Talker hidden size
+d_sae: 16384                        # 16x expansion (can increase to 32768 for 32x)
+k: 32                               # Top-K sparsity (exactly 32 features active)
+expansion_factor: 16                # For reference
+
+# Training config
+batch_size: 8192                    # Activation vectors per batch
+learning_rate: 1.0e-3
+lr_scheduler: "cosine"              # cosine annealing
+warmup_steps: 1000
+max_steps: 500000                   # ~5B tokens at batch_size=8192
+
+# Optimization
+optimizer: "adamw"
+weight_decay: 0.01
+gradient_clip: 1.0
+mixed_precision: true
+
+# Monitoring
+log_interval: 100
+checkpoint_interval: 5000
+dead_feature_resampling: true
+dead_feature_threshold: 100
+
+# Data
+activation_dtype: "float16"         # FP16 for storage
+num_workers: 4
+
+# Output
+output_dir: "checkpoints/sae_qwen3tts"
+wandb_project: "phonetic-sae"
+wandb_run_name: "qwen3tts-16x-topk32"
