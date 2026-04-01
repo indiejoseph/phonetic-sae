@@ -106,6 +106,13 @@ class EnvironmentValidator:
             critical=True
         )
 
+        # Qwen-ASR (for forced alignment)
+        self.check(
+            "Qwen-ASR installation",
+            self._check_qwen_asr,
+            critical=True
+        )
+
         # NumPy
         self.check(
             "NumPy installation",
@@ -223,6 +230,14 @@ class EnvironmentValidator:
         except ImportError:
             return False, "TorchAudio not installed"
 
+    def _check_qwen_asr(self) -> Tuple[bool, str]:
+        """Check qwen_asr library for forced alignment."""
+        try:
+            from qwen_asr import Qwen3ForcedAligner
+            return True, "Qwen-ASR (Qwen3ForcedAligner available)"
+        except ImportError:
+            return False, "Qwen-ASR not installed. Run: pip install qwen-asr"
+
     def _check_numpy(self) -> Tuple[bool, str]:
         """Check numpy library."""
         try:
@@ -261,7 +276,6 @@ class EnvironmentValidator:
     def _check_hf_connectivity(self) -> Tuple[bool, str]:
         """Check HuggingFace Hub connectivity."""
         try:
-            from transformers import AutoModel
             # Try to get model info without downloading
             from huggingface_hub import model_info
 

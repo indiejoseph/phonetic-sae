@@ -25,13 +25,15 @@ def inspect_model_api(language: str = "en", device: str = "cuda"):
     print(f"{'='*70}\n")
 
     try:
-        from transformers import AutoModel, AutoProcessor
+        from qwen_asr import Qwen3ForcedAligner
+        import torch
 
         print(f"Loading model...")
-        model = AutoModel.from_pretrained(
+        device_map = "cuda:0" if device == "cuda" else "cpu"
+        model = Qwen3ForcedAligner.from_pretrained(
             "Qwen/Qwen3-ForcedAligner-0.6B",
-            device_map=device,
-            trust_remote_code=True,
+            dtype=torch.bfloat16,
+            device_map=device_map,
         )
 
         print(f"✅ Model loaded!\n")
@@ -69,35 +71,7 @@ def inspect_model_api(language: str = "en", device: str = "cuda"):
         for method, sig in sorted(model_methods.items())[:30]:
             print(f"  • {method}: {sig}")
 
-        # Inspect processor
-        print(f"\n{'='*70}")
-        print(f"PROCESSOR API")
-        print(f"{'='*70}\n")
-
-        try:
-            processor = AutoProcessor.from_pretrained(
-                "Qwen/Qwen3-ForcedAligner-0.6B",
-                trust_remote_code=True,
-            )
-            print(f"✅ Processor loaded!\n")
-
-            processor_methods = {}
-            for name in dir(processor):
-                if not name.startswith("_"):
-                    attr = getattr(processor, name)
-                    if callable(attr):
-                        try:
-                            sig = inspect.signature(attr)
-                            processor_methods[name] = str(sig)
-                        except:
-                            processor_methods[name] = "callable"
-
-            print("Processor methods:")
-            for method, sig in sorted(processor_methods.items())[:20]:
-                print(f"  • {method}: {sig}")
-
-        except Exception as e:
-            print(f"⚠️ Could not load processor: {e}")
+        # Note: qwen_asr doesn't use a separate processor like transformers
 
         # Inspect config
         print(f"\n{'='*70}")
@@ -116,8 +90,6 @@ def inspect_model_api(language: str = "en", device: str = "cuda"):
         print(f"\n{'='*70}")
         print(f"TESTING ACTUAL MODEL INPUT/OUTPUT")
         print(f"{'='*70}\n")
-
-        import torch
 
         print("Testing inference...")
         try:
