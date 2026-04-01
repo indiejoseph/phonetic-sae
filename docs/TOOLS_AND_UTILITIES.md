@@ -310,7 +310,7 @@ Total samples: 30
 python scripts/capture_with_alignment.py \
   --model qwen3tts \                  # Model (qwen3tts, cosyvoice2)
   --dataset custom \                  # Dataset type (custom, libritts)
-  --dataset-csv data/dataset.jsonl \  # Dataset path
+  --dataset-file data/dataset.jsonl \  # Dataset path
   --lang en \                         # Language (en, zh, yue)
   --output data/activations \         # Output directory
   --num-samples 50000 \               # Number of samples to process
@@ -386,7 +386,7 @@ python scripts/generate_test_dataset.py --num-samples 10 --output data/test_data
 python scripts/capture_with_alignment.py \
   --model qwen3tts \
   --dataset custom \
-  --dataset-csv data/test_dataset/dataset.jsonl \
+  --dataset-file data/test_dataset/dataset.jsonl \
   --lang en \
   --output data/pilot_activations \
   --num-samples 10 \
@@ -404,7 +404,7 @@ python -c "import json; print(json.load(open('data/pilot_activations/phoneme_inv
 python scripts/capture_with_alignment.py \
   --model qwen3tts \
   --dataset custom \
-  --dataset-csv data/your_dataset.jsonl \
+  --dataset-file data/your_dataset.jsonl \
   --lang en \
   --output data/activations/qwen3tts \
   --num-samples 50000 \
@@ -429,7 +429,7 @@ python scripts/generate_test_dataset.py --num-samples 3
 python scripts/capture_with_alignment.py \
   --model qwen3tts \
   --dataset custom \
-  --dataset-csv data/test_dataset/dataset.jsonl \
+  --dataset-file data/test_dataset/dataset.jsonl \
   --lang en \
   --output data/debug_activations \
   --num-samples 3 \

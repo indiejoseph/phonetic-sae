@@ -53,7 +53,7 @@ python scripts/train_sae.py \
 python scripts/full_capture.py \
   --model qwen3tts \
   --dataset custom \
-  --dataset-csv data/out.jsonl \
+  --dataset-file data/out.jsonl \
   --output data/activations/qwen3tts \
   --num-samples 50000
 
@@ -72,7 +72,7 @@ python scripts/train_sae.py \
 for lang in en zh yue; do
   python scripts/capture_with_alignment.py \
     --model qwen3tts \
-    --dataset-csv data/out.jsonl \
+    --dataset-file data/out.jsonl \
     --lang $lang \
     --output data/activations_aligned \
     --num-samples 50000 \
@@ -100,13 +100,13 @@ done
 python scripts/full_capture.py \
   --model qwen3tts \
   --dataset custom \
-  --dataset-csv data/out.jsonl \
+  --dataset-file data/out.jsonl \
   --output data/activations/qwen3tts_standard \
   --num-samples 50000
 
 python scripts/capture_with_alignment.py \
   --model qwen3tts \
-  --dataset-csv data/out.jsonl \
+  --dataset-file data/out.jsonl \
   --lang en \
   --output data/activations_aligned \
   --num-samples 10000
@@ -402,7 +402,7 @@ How are you?,en,data/audio/english_001.wav,speaker_003
 python scripts/full_capture.py \
   --model qwen3tts \
   --dataset custom \
-  --dataset-csv data/out.jsonl \
+  --dataset-file data/out.jsonl \
   --output data/activations/qwen3tts \
   --num-samples 50000
 ```
@@ -413,7 +413,7 @@ python scripts/full_capture.py \
 python scripts/full_capture.py \
   --model qwen3tts \
   --dataset custom \
-  --dataset-csv data/custom_dataset.csv \
+  --dataset-file data/custom_dataset.csv \
   --output data/activations/qwen3tts \
   --num-samples 50000
 ```

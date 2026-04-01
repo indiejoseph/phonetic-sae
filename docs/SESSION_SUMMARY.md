@@ -127,7 +127,7 @@ This session completed the **Phase 1 Setup & Tooling Layer** — comprehensive i
 │ $ python scripts/capture_with_alignment.py \            │
 │     --model qwen3tts \                                  │
 │     --dataset custom \                                  │
-│     --dataset-csv data/test_dataset/dataset.jsonl \     │
+│     --dataset-file data/test_dataset/dataset.jsonl \     │
 │     --lang en \                                         │
 │     --output data/pilot_activations \                   │
 │     --num-samples 10 \                                  │
@@ -143,7 +143,7 @@ This session completed the **Phase 1 Setup & Tooling Layer** — comprehensive i
 │ $ python scripts/capture_with_alignment.py \            │
 │     --model qwen3tts \                                  │
 │     --dataset custom \                                  │
-│     --dataset-csv data/your_dataset.jsonl \             │
+│     --dataset-file data/your_dataset.jsonl \             │
 │     --lang en \                                         │
 │     --output data/activations/qwen3tts \                │
 │     --num-samples 50000 \                               │
@@ -241,7 +241,7 @@ python scripts/generate_test_dataset.py --num-samples 10  # Synthetic data
 python scripts/capture_with_alignment.py \
   --model qwen3tts \
   --dataset custom \
-  --dataset-csv data/your_dataset.jsonl \
+  --dataset-file data/your_dataset.jsonl \
   --lang en \
   --output data/activations \
   --num-samples 50000 \

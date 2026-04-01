@@ -225,7 +225,7 @@ def main():
         logger.info(f"python scripts/capture_with_alignment.py \\")
         logger.info(f"  --model qwen3tts \\")
         logger.info(f"  --dataset custom \\")
-        logger.info(f"  --dataset-csv {jsonl_path} \\")
+        logger.info(f"  --dataset-file {jsonl_path} \\")
         logger.info(f"  --lang en \\")
         logger.info(f"  --output data/pilot_activations \\")
         logger.info(f"  --num-samples {total_samples} \\")

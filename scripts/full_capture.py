@@ -17,7 +17,7 @@ Usage:
     python scripts/full_capture.py \
         --model cosyvoice2 \
         --dataset custom \
-        --dataset-csv data/my_dataset.csv \
+        --dataset-file data/my_dataset.csv \
         --output data/activations/cosyvoice2 \
         --num-samples 50000
 """
@@ -60,10 +60,10 @@ def main():
         help="Which dataset to use",
     )
     parser.add_argument(
-        "--dataset-csv",
+        "--dataset-file",
         type=Path,
         default=None,
-        help="Path to custom dataset CSV (required if --dataset=custom)",
+        help="Path to custom dataset file (CSV or JSONL, required if --dataset=custom)",
     )
     parser.add_argument(
         "--output",
@@ -143,11 +143,11 @@ def main():
             logger.info("Falling back to pilot dataset")
             dataset = create_pilot_dataset(num_samples=args.num_samples)
     elif args.dataset == "custom":
-        if args.dataset_csv is None:
-            logger.error("--dataset-csv required for custom dataset")
+        if args.dataset_file is None:
+            logger.error("--dataset-file required for custom dataset")
             return
         try:
-            dataset_obj = CustomDataset(args.dataset_csv)
+            dataset_obj = CustomDataset(args.dataset_file)
             dataset_iter = dataset_obj.iterator(batch_size=1)
             samples = []
             for batch in dataset_iter:

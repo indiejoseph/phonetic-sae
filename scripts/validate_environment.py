@@ -113,6 +113,13 @@ class EnvironmentValidator:
             critical=True
         )
 
+        # Qwen-TTS (for TTS model)
+        self.check(
+            "Qwen-TTS installation",
+            self._check_qwen_tts,
+            critical=True
+        )
+
         # NumPy
         self.check(
             "NumPy installation",
@@ -237,6 +244,14 @@ class EnvironmentValidator:
             return True, "Qwen-ASR (Qwen3ForcedAligner available)"
         except ImportError:
             return False, "Qwen-ASR not installed. Run: pip install qwen-asr"
+
+    def _check_qwen_tts(self) -> Tuple[bool, str]:
+        """Check qwen_tts library for TTS model."""
+        try:
+            from qwen_tts import Qwen3TTSModel
+            return True, "Qwen-TTS (Qwen3TTSModel available)"
+        except ImportError:
+            return False, "Qwen-TTS not installed. Run: pip install qwen-tts"
 
     def _check_numpy(self) -> Tuple[bool, str]:
         """Check numpy library."""

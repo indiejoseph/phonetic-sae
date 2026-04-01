@@ -150,7 +150,7 @@ Now run activation capture on your 10-sample test set:
 python scripts/capture_with_alignment.py \
   --model qwen3tts \
   --dataset custom \
-  --dataset-csv data/test_dataset/test.jsonl \
+  --dataset-file data/test_dataset/test.jsonl \
   --lang en \
   --output data/pilot_activations \
   --num-samples 10 \
@@ -263,7 +263,7 @@ Once the pilot succeeds, you're ready to capture your full dataset:
 python scripts/capture_with_alignment.py \
   --model qwen3tts \
   --dataset custom \
-  --dataset-csv data/your_full_dataset.jsonl \
+  --dataset-file data/your_full_dataset.jsonl \
   --lang en \
   --output data/activations/qwen3tts \
   --num-samples 50000 \

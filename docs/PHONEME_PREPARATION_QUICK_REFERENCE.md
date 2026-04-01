@@ -133,7 +133,7 @@ python scripts/setup_phoneme_converters.py
 python scripts/capture_with_alignment.py \
   --model qwen3tts \
   --dataset custom \
-  --dataset-csv data/your_dataset.jsonl \
+  --dataset-file data/your_dataset.jsonl \
   --lang en \
   --output data/activations \
   --num-samples 100 \

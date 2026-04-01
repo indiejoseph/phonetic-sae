@@ -151,7 +151,7 @@ How are you today?,en,data/audio/english_001.wav,speaker_003
 python scripts/full_capture.py \
   --model qwen3tts \
   --dataset custom \
-  --dataset-csv data/out.jsonl \
+  --dataset-file data/out.jsonl \
   --output data/activations/qwen3tts \
   --num-samples 50000
 ```

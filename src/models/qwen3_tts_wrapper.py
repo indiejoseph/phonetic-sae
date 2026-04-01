@@ -51,34 +51,31 @@ class Qwen3TTSWrapper:
         self._load_model()
 
     def _load_model(self):
-        """Load Qwen3-TTS model and tokenizer."""
+        """Load Qwen3-TTS model using qwen_tts package.
+
+        Note: Use qwen_tts.Qwen3TTSModel, NOT transformers.AutoModelForCausalLM
+        The qwen_tts package handles the specialized Qwen3-TTS architecture.
+        """
         try:
-            # Try loading from local path first
-            if isinstance(self.model_path, Path) and self.model_path.exists():
-                logger.info(f"Loading Qwen3-TTS from local path: {self.model_path}")
-                from transformers import AutoModelForCausalLM, AutoTokenizer
+            from qwen_tts import Qwen3TTSModel
 
-                self.model = AutoModelForCausalLM.from_pretrained(
-                    str(self.model_path),
-                    torch_dtype=self.dtype,
-                    device_map=self.device,
-                    trust_remote_code=True,
-                )
-                self.tokenizer = AutoTokenizer.from_pretrained(str(self.model_path))
-            else:
-                # Load from HuggingFace
-                logger.info(f"Loading Qwen3-TTS from HuggingFace: {self.model_path}")
-                from transformers import AutoModelForCausalLM, AutoTokenizer
+            logger.info(f"Loading Qwen3-TTS from: {self.model_path}")
 
-                self.model = AutoModelForCausalLM.from_pretrained(
-                    str(self.model_path),
-                    torch_dtype=self.dtype,
-                    device_map=self.device,
-                    trust_remote_code=True,
-                )
-                self.tokenizer = AutoTokenizer.from_pretrained(str(self.model_path))
+            # Convert device format: "cuda" → "cuda:0"
+            device_map = "cuda:0" if self.device == "cuda" else self.device
 
-            logger.info(f"Model loaded on {self.device} with dtype {self.dtype}")
+            self.model = Qwen3TTSModel.from_pretrained(
+                str(self.model_path),
+                device_map=device_map,
+                dtype=self.dtype,
+                # Uncomment if flash_attention_2 is available and desired
+                # attn_implementation="flash_attention_2",
+            )
+
+            logger.info(f"✅ Qwen3-TTS model loaded on {device_map} with dtype {self.dtype}")
+        except ImportError as e:
+            logger.error(f"qwen_tts library required: pip install qwen-tts. Error: {e}")
+            raise
         except Exception as e:
             logger.error(f"Failed to load Qwen3-TTS: {e}")
             raise
@@ -101,65 +98,73 @@ class Qwen3TTSWrapper:
         language: str = "English",
         ref_audio: Optional[str] = None,
         ref_text: Optional[str] = None,
-        temperature: float = 0.9,
-        top_k: int = 50,
-        max_new_tokens: int = 2048,
+        speaker: Optional[str] = None,
+        instruct: Optional[str] = None,
     ) -> dict:
-        """Generate speech from text using voice cloning.
+        """Generate speech from text using Qwen3-TTS.
+
+        Supports two modes:
+        1. Voice Cloning (ref_audio + ref_text required)
+        2. Custom Voice (speaker + instruct required)
 
         Parameters
         ----------
         text : str
             Text to synthesize
         language : str
-            Language code ("English", "Chinese", "Spanish", etc.)
+            Language ("English", "Chinese", "Japanese", "Spanish", etc.)
         ref_audio : str, optional
             Path to reference audio for voice cloning
         ref_text : str, optional
             Transcription of reference audio
-        temperature : float
-            Sampling temperature
-        top_k : int
-            Top-K sampling parameter
-        max_new_tokens : int
-            Maximum tokens to generate
+        speaker : str, optional
+            Speaker name for custom voice (e.g., "Vivian")
+        instruct : str, optional
+            Voice instruction/style for custom voice
 
         Returns
         -------
         output : dict
             Dictionary with keys:
-            - "waveform": numpy array of synthesized audio
+            - "waveform": numpy array of synthesized audio (shape: [1, num_samples])
             - "sample_rate": 24000
         """
         if self.model is None:
             raise RuntimeError("Model not loaded")
 
         try:
-            # Use the model's generate_voice_clone method if available
-            if hasattr(self.model, "generate_voice_clone"):
-                wav, sr = self.model.generate_voice_clone(
+            # Voice Cloning mode: requires ref_audio and ref_text
+            if ref_audio is not None and ref_text is not None:
+                logger.info(f"Generating voice clone for: {text[:50]}...")
+                wavs, sr = self.model.generate_voice_clone(
                     text=text,
                     language=language,
                     ref_audio=ref_audio,
                     ref_text=ref_text,
-                    temperature=temperature,
-                    top_k=top_k,
-                    max_new_tokens=max_new_tokens,
                 )
-                return {"waveform": wav, "sample_rate": sr}
+                return {"waveform": wavs[0] if isinstance(wavs, list) else wavs, "sample_rate": sr}
+
+            # Custom Voice mode: requires speaker and optionally instruct
+            elif speaker is not None:
+                logger.info(f"Generating custom voice ({speaker}) for: {text[:50]}...")
+                wavs, sr = self.model.generate_custom_voice(
+                    text=text,
+                    language=language,
+                    speaker=speaker,
+                    instruct=instruct or "",
+                )
+                return {"waveform": wavs[0] if isinstance(wavs, list) else wavs, "sample_rate": sr}
+
+            # Base mode: just text-to-speech without voice cloning
             else:
-                # Fallback: use generic generation
-                logger.warning("Model does not have generate_voice_clone, using generic generation")
-                input_ids = self.tokenizer.encode(text, return_tensors="pt").to(self.device)
-                with torch.no_grad():
-                    output_ids = self.model.generate(
-                        input_ids,
-                        temperature=temperature,
-                        top_k=top_k,
-                        max_new_tokens=max_new_tokens,
-                    )
-                # This won't produce audio, just dummy output
-                return {"waveform": None, "sample_rate": 24000}
+                logger.info(f"Generating base TTS for: {text[:50]}...")
+                # Use the model's standard generate method for base mode
+                if hasattr(self.model, "generate"):
+                    wavs, sr = self.model.generate(text=text, language=language)
+                    return {"waveform": wavs[0] if isinstance(wavs, list) else wavs, "sample_rate": sr}
+                else:
+                    raise ValueError("Model does not support base generation mode")
+
         except Exception as e:
             logger.error(f"Generation failed: {e}")
             raise

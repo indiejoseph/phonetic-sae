@@ -57,7 +57,7 @@ pip install transformers torchaudio
 ```bash
 python scripts/capture_with_alignment.py \
   --model qwen3tts \
-  --dataset-csv data/out.jsonl \
+  --dataset-file data/out.jsonl \
   --lang en \
   --output data/activations_aligned \
   --num-samples 100 \

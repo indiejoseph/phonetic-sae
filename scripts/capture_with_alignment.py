@@ -6,8 +6,7 @@ Captures activations AND phoneme-to-frame alignment for SAE feature analysis.
 Usage:
     python scripts/capture_with_alignment.py \
         --model qwen3tts \
-        --dataset custom \
-        --dataset-csv data/out.jsonl \
+        --dataset-file data/out.jsonl \
         --lang en \
         --output data/activations_aligned/en
 """
@@ -142,10 +141,10 @@ def main():
         help="Which model to use",
     )
     parser.add_argument(
-        "--dataset-csv",
+        "--dataset-file",
         type=Path,
         required=True,
-        help="Path to dataset CSV/JSONL",
+        help="Path to dataset file (CSV or JSONL format)",
     )
     parser.add_argument(
         "--lang",
@@ -204,7 +203,7 @@ def main():
 
     # Load dataset
     try:
-        dataset = CustomDataset(args.dataset_csv)
+        dataset = CustomDataset(args.dataset_file)
         pairs = dataset.filter_by_language(
             {"en": "English", "zh": "Mandarin", "yue": "Cantonese"}[args.lang]
         )
