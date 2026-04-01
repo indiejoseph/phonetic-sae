@@ -9,7 +9,10 @@ dist/
 build/
 
 # Data directories
-data
+data/activations/
+data/alignments/
+data/datasets/
+data/*.jsonl
 checkpoints/
 outputs/
 results/
