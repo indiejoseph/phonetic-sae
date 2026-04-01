@@ -13,11 +13,14 @@ This repository implements a pipeline to discover, analyze, and intervene on pho
 - 📤 [Delivery Report](docs/DELIVERY_REPORT.md) — Final delivery summary
 - 🔧 [MSAE Integration](docs/MSAE_for_TTS.md) — MSAE setup guide
 
-**Architecture References:**
+**Architecture & Technical References:**
 - [Qwen3-TTS Architecture](docs/QWEN3_TTS_0.6B_ARCHITECTURE.md)
 - [CosyVoice2 Architecture](docs/COSYVOICE2_0.5B_ARCHITECTURE.md)
 - [Model Comparison](docs/MODEL_COMPARISON.md)
 - [Dataset Guide](docs/DATASET.md)
+- [Phoneme Alignment Guide](docs/PHONEME_ALIGNMENT.md) ⭐ **NEW**
+- [Qwen3-ForcedAligner Inference](docs/QWEN3_FORCEDALIGNER_INFERENCE.md) ⭐ **NEW**
+- [Phoneme Set Sources](docs/PHONEME_SETS_SOURCES.md) ⭐ **NEW**
 
 ## Getting started
 1. Create a Python virtual environment (recommended Python 3.10/3.11).

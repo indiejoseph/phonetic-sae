@@ -47,11 +47,13 @@ python scripts/train_sae.py \
 
 ## 📊 Full Pipeline (Production Workflow)
 
+### Option A: Standard Capture (No Alignment)
 ```bash
 # 1. Capture 50K sentences (1-2 hours)
 python scripts/full_capture.py \
   --model qwen3tts \
-  --dataset libritts \
+  --dataset custom \
+  --dataset-csv data/out.jsonl \
   --output data/activations/qwen3tts \
   --num-samples 50000
 
@@ -61,9 +63,56 @@ python scripts/train_sae.py \
   --activation-dir data/activations/qwen3tts \
   --output checkpoints/sae_qwen3tts \
   --wandb-project phonetic-sae
-
-# 3. (Later) Feature discovery, interventions, distillation...
 ```
+
+### Option B: Capture with Phoneme Alignment (Recommended)
+```bash
+# 1. Capture with ground truth phoneme alignment (2-3 hours)
+# Processes per language for cleaner feature discovery
+for lang in en zh yue; do
+  python scripts/capture_with_alignment.py \
+    --model qwen3tts \
+    --dataset-csv data/out.jsonl \
+    --lang $lang \
+    --output data/activations_aligned \
+    --num-samples 50000 \
+    --device cuda
+done
+
+# 2. Train per-language SAEs (optional but recommended)
+for lang in en zh yue; do
+  python scripts/train_sae.py \
+    --config configs/sae_qwen3tts.yaml \
+    --activation-dir data/activations_aligned/$lang \
+    --output checkpoints/sae_qwen3tts_$lang
+done
+
+# 3. Feature-phoneme correlation analysis (Phase 3)
+# See: docs/PHONEME_ALIGNMENT.md for analysis guide
+```
+
+### Option C: Hybrid (Standard + Alignment)
+```bash
+# Run both for comparative analysis
+# Standard: larger dataset, broader feature coverage
+# Aligned: smaller dataset, interpretable features
+
+python scripts/full_capture.py \
+  --model qwen3tts \
+  --dataset custom \
+  --dataset-csv data/out.jsonl \
+  --output data/activations/qwen3tts_standard \
+  --num-samples 50000
+
+python scripts/capture_with_alignment.py \
+  --model qwen3tts \
+  --dataset-csv data/out.jsonl \
+  --lang en \
+  --output data/activations_aligned \
+  --num-samples 10000
+```
+
+**→ Later: Feature discovery, interventions, distillation...**
 
 ---
 

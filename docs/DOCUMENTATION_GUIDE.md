@@ -41,6 +41,7 @@ phonetic-sae/
 - **INFERENCE_AND_INPUT_IDS.md** — Input formatting and inference details
 - **MSAE_for_TTS.md** — MSAE integration guide
 - **DATASET.md** — Dataset format and preparation
+- **PHONEME_ALIGNMENT.md** — Forced aligner setup & per-phoneme feature analysis ⭐ NEW
 
 ---
 
