@@ -95,45 +95,57 @@ class Qwen3TTSWrapper:
     def get_layer_accessor(self):
         """Return a custom layer accessor function for this model.
 
-        Qwen3-TTS wrapper structure:
-        - Outer: Qwen3TTSModel (wrapper from qwen_tts)
-        - Inner: model.model is Qwen3TTSTalkerForConditionalGeneration
-        - Layers: model.model.transformer.h[i] or model.model.model.layers[i]
+        Qwen3-TTS complex wrapper structure:
+        - Outer: Qwen3TTSModel (from qwen_tts)
+        - Middle: model.model may be PEFT-wrapped
+        - Base: model.model.base_model is actual Qwen3TTSForConditionalGeneration
+        - Layers: base_model.transformer.h[i] or similar
         """
         def accessor(model, layer_idx: int) -> nn.Module:
-            """Access Qwen3-TTS talker layers through various possible paths."""
+            """Access Qwen3-TTS talker layers through wrapper layers."""
             try:
-                # model_to_inspect will be the actual talker model
-                model_to_inspect = model.model if hasattr(model, "model") else model
+                # Unwrap the model step by step
+                model_to_inspect = model
+                unwrap_steps = [
+                    ("model", "unwrap qwen_tts wrapper"),
+                    ("base_model", "unwrap PEFT wrapper"),
+                ]
 
-                # Try different possible layer structures
+                for attr, desc in unwrap_steps:
+                    if hasattr(model_to_inspect, attr):
+                        model_to_inspect = getattr(model_to_inspect, attr)
+                        logger.debug(f"  → {desc}: {type(model_to_inspect).__name__}")
+
+                # Try different possible layer structures on unwrapped model
                 # Qwen2-style: model.transformer.h[i]
                 if hasattr(model_to_inspect, "transformer") and hasattr(model_to_inspect.transformer, "h"):
                     layer = model_to_inspect.transformer.h[layer_idx]
-                    logger.debug(f"✓ Found layer via model.transformer.h[{layer_idx}]")
+                    logger.info(f"✓ Accessing layers via model.transformer.h[{layer_idx}]")
                     return layer
 
                 # HuggingFace style: model.model.layers[i]
                 elif hasattr(model_to_inspect, "model") and hasattr(model_to_inspect.model, "layers"):
                     layer = model_to_inspect.model.layers[layer_idx]
-                    logger.debug(f"✓ Found layer via model.model.layers[{layer_idx}]")
+                    logger.info(f"✓ Accessing layers via model.model.layers[{layer_idx}]")
                     return layer
 
                 # Direct access: model.layers[i]
                 elif hasattr(model_to_inspect, "layers"):
                     layer = model_to_inspect.layers[layer_idx]
-                    logger.debug(f"✓ Found layer via model.layers[{layer_idx}]")
+                    logger.info(f"✓ Accessing layers via model.layers[{layer_idx}]")
                     return layer
 
                 else:
-                    # List what we found
-                    modules = [(name, type(getattr(model_to_inspect, name)).__name__)
-                              for name in dir(model_to_inspect)
-                              if not name.startswith("_") and hasattr(model_to_inspect, name)]
+                    # As last resort, check _modules dict
+                    if hasattr(model_to_inspect, "_modules"):
+                        layer_modules = [k for k in model_to_inspect._modules.keys()
+                                       if k.startswith("layer") or k.startswith("h")]
+                        if layer_modules:
+                            logger.warning(f"Found layer-like modules: {layer_modules[:5]}")
+
                     raise AttributeError(
-                        f"Cannot find layers in {type(model_to_inspect).__name__}. "
-                        f"Tried: transformer.h, model.layers, layers. "
-                        f"Available modules: {modules[:10]}"
+                        f"Cannot find layer structure in {type(model_to_inspect).__name__}. "
+                        f"Tried: transformer.h, model.layers, layers"
                     )
 
             except (AttributeError, IndexError, TypeError) as e:
