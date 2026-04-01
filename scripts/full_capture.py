@@ -84,9 +84,9 @@ def main():
     )
     parser.add_argument(
         "--dtype",
-        default="float16",
-        choices=["float32", "float16"],
-        help="Data type for activations",
+        default="bfloat16",
+        choices=["float32", "float16", "bfloat16"],
+        help="Model dtype (bfloat16 recommended for Qwen3-TTS)",
     )
     parser.add_argument(
         "--batch-size",
@@ -102,7 +102,12 @@ def main():
     )
 
     # Load model
-    torch_dtype = torch.float16 if args.dtype == "float16" else torch.float32
+    if args.dtype == "float16":
+        torch_dtype = torch.float16
+    elif args.dtype == "bfloat16":
+        torch_dtype = torch.bfloat16
+    else:
+        torch_dtype = torch.float32
     layer_accessor = None
 
     if args.model == "qwen3tts":

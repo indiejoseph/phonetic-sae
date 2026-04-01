@@ -19,6 +19,7 @@ This repository implements a pipeline to discover, analyze, and intervene on pho
 
 **Architecture & Technical References:**
 - [Qwen3-TTS Architecture](docs/QWEN3_TTS_0.6B_ARCHITECTURE.md)
+- [Qwen3-TTS Model Structure](docs/QWEN3_TTS_STRUCTURE.md) ⭐ **NEW** — Layer access paths & wrapper hierarchy
 - [CosyVoice2 Architecture](docs/COSYVOICE2_0.5B_ARCHITECTURE.md)
 - [Model Comparison](docs/MODEL_COMPARISON.md)
 - [Dataset Guide](docs/DATASET.md)

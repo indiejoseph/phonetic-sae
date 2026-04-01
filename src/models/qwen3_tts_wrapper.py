@@ -41,7 +41,7 @@ class Qwen3TTSWrapper:
         self,
         model_path: str | Path = "Qwen/Qwen3-TTS-12Hz-0.6B-Base",
         device: str = "cuda" if torch.cuda.is_available() else "cpu",
-        dtype: torch.dtype = torch.float16,
+        dtype: torch.dtype = torch.bfloat16,
     ):
         self.model_path = Path(model_path) if isinstance(model_path, str) else model_path
         self.device = device
@@ -73,6 +73,20 @@ class Qwen3TTSWrapper:
             )
 
             logger.info(f"✅ Qwen3-TTS model loaded on {device_map} with dtype {self.dtype}")
+
+            # Load tokenizer for text encoding
+            # Use Qwen3 tokenizer (Qwen3-TTS is based on Qwen3)
+            try:
+                from transformers import AutoTokenizer
+                self.tokenizer = AutoTokenizer.from_pretrained(
+                    "Qwen/Qwen3-7B",  # Reference tokenizer (same as Qwen3-TTS uses)
+                    trust_remote_code=True,
+                )
+                logger.info(f"✅ Tokenizer loaded")
+            except Exception as e:
+                logger.warning(f"Failed to load tokenizer: {e}. Activation capture will not work.")
+                self.tokenizer = None
+
         except ImportError as e:
             logger.error(f"qwen_tts library required: pip install qwen-tts. Error: {e}")
             raise

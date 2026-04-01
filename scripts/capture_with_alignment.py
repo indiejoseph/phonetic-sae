@@ -172,9 +172,9 @@ def main():
     )
     parser.add_argument(
         "--dtype",
-        choices=["float32", "float16"],
-        default="float16",
-        help="Data type",
+        choices=["float32", "float16", "bfloat16"],
+        default="bfloat16",
+        help="Model dtype (bfloat16 recommended for Qwen3-TTS)",
     )
 
     args = parser.parse_args()
@@ -185,7 +185,12 @@ def main():
     )
 
     # Load model
-    torch_dtype = torch.float16 if args.dtype == "float16" else torch.float32
+    if args.dtype == "float16":
+        torch_dtype = torch.float16
+    elif args.dtype == "bfloat16":
+        torch_dtype = torch.bfloat16
+    else:
+        torch_dtype = torch.float32
     layer_accessor = None  # Custom layer accessor for some models
 
     if args.model == "qwen3tts":
