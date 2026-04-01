@@ -43,7 +43,14 @@ class Qwen3TTSWrapper:
         device: str = "cuda" if torch.cuda.is_available() else "cpu",
         dtype: torch.dtype = torch.bfloat16,
     ):
-        self.model_path = Path(model_path) if isinstance(model_path, str) else model_path
+        # Keep model_path as string if it's a HuggingFace ID (contains '/'),
+        # only convert local paths to Path objects
+        if isinstance(model_path, str):
+            # HuggingFace model ID contains '/', local paths don't
+            self.model_path = model_path if "/" in model_path else Path(model_path)
+        else:
+            self.model_path = model_path
+
         self.device = device
         self.dtype = dtype
         self.model = None
