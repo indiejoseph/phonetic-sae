@@ -92,6 +92,31 @@ class Qwen3TTSWrapper:
         """Get target layer indices for phonetic SAE (layers 1-7 of Talker)."""
         return list(range(1, 8))  # Layers 1-7 (first 25% of 28-layer model)
 
+    def get_layer_accessor(self):
+        """Return a custom layer accessor function for this model.
+
+        Qwen3-TTS has layers at: model.talker.layers[i].mlp
+        """
+        def accessor(model, layer_idx: int) -> nn.Module:
+            """Access Qwen3-TTS layers."""
+            try:
+                # Qwen3-TTS structure
+                if hasattr(model, "talker"):
+                    return model.talker.layers[layer_idx]
+                else:
+                    raise AttributeError(
+                        f"Model {type(model).__name__} does not have 'talker' attribute. "
+                        f"Expected: Qwen3TTSModel with talker.layers[{layer_idx}]"
+                    )
+            except (AttributeError, IndexError) as e:
+                logger.error(
+                    f"Cannot access layer {layer_idx}: {e}. "
+                    f"Available attributes: {dir(model)}"
+                )
+                raise
+
+        return accessor
+
     def generate(
         self,
         text: str,

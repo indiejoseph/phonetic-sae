@@ -92,6 +92,31 @@ class CosyVoice2Wrapper:
         """Get target layer indices for phonetic SAE (layers 1-6 of LLM)."""
         return list(range(1, 7))  # Layers 1-6 (first 25% of 24-layer model)
 
+    def get_layer_accessor(self):
+        """Return a custom layer accessor function for this model.
+
+        CosyVoice2 has layers at: model.llm.layers[i].mlp
+        """
+        def accessor(model, layer_idx: int) -> nn.Module:
+            """Access CosyVoice2 LLM layers."""
+            try:
+                # CosyVoice2 structure
+                if hasattr(model, "llm") and hasattr(model.llm, "layers"):
+                    return model.llm.layers[layer_idx]
+                else:
+                    raise AttributeError(
+                        f"Model {type(model).__name__} does not have 'llm.layers'. "
+                        f"Expected: CosyVoice2Model with llm.layers[{layer_idx}]"
+                    )
+            except (AttributeError, IndexError) as e:
+                logger.error(
+                    f"Cannot access layer {layer_idx}: {e}. "
+                    f"Available attributes: {dir(model)}"
+                )
+                raise
+
+        return accessor
+
     def generate(
         self,
         tts_text: str,

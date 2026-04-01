@@ -103,16 +103,20 @@ def main():
 
     # Load model
     torch_dtype = torch.float16 if args.dtype == "float16" else torch.float32
+    layer_accessor = None
+
     if args.model == "qwen3tts":
         model_wrapper = Qwen3TTSWrapper(device=args.device, dtype=torch_dtype)
         target_layers = model_wrapper.get_target_layers()
         model = model_wrapper.model
         tokenizer = model_wrapper.tokenizer
+        layer_accessor = model_wrapper.get_layer_accessor()
     else:  # cosyvoice2
         model_wrapper = CosyVoice2Wrapper(device=args.device, dtype=torch_dtype)
         target_layers = model_wrapper.get_target_layers()
         model = model_wrapper.model
         tokenizer = None
+        layer_accessor = model_wrapper.get_layer_accessor()
 
     if model is None:
         logger.error("Model failed to load")
@@ -164,6 +168,7 @@ def main():
     hook = ActivationHook(
         model,
         layer_indices=target_layers,
+        layer_accessor=layer_accessor,
         device="cpu",
         dtype=torch.float16,
     )
