@@ -97,29 +97,47 @@ class Qwen3TTSWrapper:
 
         Qwen3-TTS wrapper structure:
         - Outer: Qwen3TTSModel (wrapper from qwen_tts)
-        - Inner: model.model contains actual Qwen3TTSModel with talker
-        - Layers: model.model.talker.layers[i].mlp
+        - Inner: model.model is Qwen3TTSTalkerForConditionalGeneration
+        - Layers: model.model.transformer.h[i] or model.model.model.layers[i]
         """
         def accessor(model, layer_idx: int) -> nn.Module:
-            """Access Qwen3-TTS layers through wrapper."""
+            """Access Qwen3-TTS talker layers through various possible paths."""
             try:
-                # The qwen_tts.Qwen3TTSModel is a wrapper
-                # The actual model with talker is at model.model
-                if hasattr(model, "model") and hasattr(model.model, "talker"):
-                    return model.model.talker.layers[layer_idx]
-                # Fallback: try direct talker access
-                elif hasattr(model, "talker"):
-                    return model.talker.layers[layer_idx]
+                # model_to_inspect will be the actual talker model
+                model_to_inspect = model.model if hasattr(model, "model") else model
+
+                # Try different possible layer structures
+                # Qwen2-style: model.transformer.h[i]
+                if hasattr(model_to_inspect, "transformer") and hasattr(model_to_inspect.transformer, "h"):
+                    layer = model_to_inspect.transformer.h[layer_idx]
+                    logger.debug(f"✓ Found layer via model.transformer.h[{layer_idx}]")
+                    return layer
+
+                # HuggingFace style: model.model.layers[i]
+                elif hasattr(model_to_inspect, "model") and hasattr(model_to_inspect.model, "layers"):
+                    layer = model_to_inspect.model.layers[layer_idx]
+                    logger.debug(f"✓ Found layer via model.model.layers[{layer_idx}]")
+                    return layer
+
+                # Direct access: model.layers[i]
+                elif hasattr(model_to_inspect, "layers"):
+                    layer = model_to_inspect.layers[layer_idx]
+                    logger.debug(f"✓ Found layer via model.layers[{layer_idx}]")
+                    return layer
+
                 else:
+                    # List what we found
+                    modules = [(name, type(getattr(model_to_inspect, name)).__name__)
+                              for name in dir(model_to_inspect)
+                              if not name.startswith("_") and hasattr(model_to_inspect, name)]
                     raise AttributeError(
-                        f"Cannot find talker in {type(model).__name__}. "
-                        f"Checked: model.model.talker and model.talker"
+                        f"Cannot find layers in {type(model_to_inspect).__name__}. "
+                        f"Tried: transformer.h, model.layers, layers. "
+                        f"Available modules: {modules[:10]}"
                     )
-            except (AttributeError, IndexError) as e:
-                logger.error(
-                    f"Cannot access layer {layer_idx}: {e}. "
-                    f"Available: {[a for a in dir(model) if not a.startswith('_')]}"
-                )
+
+            except (AttributeError, IndexError, TypeError) as e:
+                logger.error(f"Cannot access layer {layer_idx}: {e}")
                 raise
 
         return accessor
