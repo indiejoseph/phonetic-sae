@@ -89,11 +89,13 @@ class Qwen3TTSWrapper:
 
             # First, try loading from the same model repo as TTS
             try:
-                self.tokenizer = AutoTokenizer.from_pretrained(
+                loaded = AutoTokenizer.from_pretrained(
                     str(self.model_path),
                     trust_remote_code=True,
                 )
-                logger.info(f"✅ Tokenizer loaded from {self.model_path}")
+                logger.debug(f"Loaded object type: {type(loaded).__name__}")
+                self.tokenizer = loaded
+                logger.info(f"✅ Tokenizer loaded from {self.model_path} (type: {type(self.tokenizer).__name__})")
             except Exception as e:
                 logger.debug(f"Could not load tokenizer from model repo: {e}")
 
