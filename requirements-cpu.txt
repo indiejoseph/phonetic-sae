@@ -45,6 +45,7 @@ openai-whisper==20231117
 tqdm==4.66.5
 scikit-learn==1.5.2
 scipy==1.12.0
+ToJyutping
 
 # Notes:
 # - Some packages (pynini, flash-attn, tensorrt, onnxruntime-gpu) are GPU/system specific and

@@ -4,8 +4,12 @@ This repository implements a pipeline to discover, analyze, and intervene on pho
 
 ## Quick Links
 
-**Documentation Structure:**
-- 📖 [Getting Started](docs/GETTING_STARTED.md) — Installation & quick start
+**Getting Started (START HERE!):**
+- 🚀 [Phase 1 Quick Start](docs/PHASE1_QUICKSTART.md) — Your first activation capture in 30 minutes ⭐ **START HERE**
+- ✅ [Onboarding Checklist](docs/ONBOARDING_CHECKLIST.md) — Track your Phase 1 progress with checkboxes
+- 📖 [Getting Started](docs/GETTING_STARTED.md) — Installation & environment setup
+
+**Project Documentation:**
 - 🎯 [Project Overview](docs/PROJECT_OVERVIEW.md) — Goals & research context
 - 📋 [Project Plan](docs/PROJECT_PLAN.md) — 6-week roadmap + next steps
 - 📊 [Executive Summary](docs/EXECUTIVE_SUMMARY.md) — High-level overview
@@ -21,16 +25,90 @@ This repository implements a pipeline to discover, analyze, and intervene on pho
 - [Phoneme Alignment Guide](docs/PHONEME_ALIGNMENT.md) ⭐ **NEW**
 - [Qwen3-ForcedAligner Inference](docs/QWEN3_FORCEDALIGNER_INFERENCE.md) ⭐ **NEW**
 - [Phoneme Set Sources](docs/PHONEME_SETS_SOURCES.md) ⭐ **NEW**
+- [Phoneme Alignment Strategy](docs/PHONEME_ALIGNMENT_STRATEGY.md) — Audio-first approach (better than G2P alone)
+- [Better Phoneme Alignment](docs/BETTER_PHONEME_ALIGNMENT.md) — Practical implementation guide
+- [Phoneme Preparation Quick Reference](docs/PHONEME_PREPARATION_QUICK_REFERENCE.md) — TL;DR for phoneme converters
+- [API Discovery Guide](docs/ACTUAL_API_DISCOVERY.md) — How to verify the actual model API
+- [Tools & Utilities Reference](docs/TOOLS_AND_UTILITIES.md) — Complete guide to all scripts and tools
+
+## Prerequisites
+
+### System Requirements
+- **Python:** 3.10+ (3.11 recommended)
+- **GPU:** RTX 3090/4090 or better (24GB+ VRAM) — models require substantial memory
+- **CUDA:** 12.1+ (for GPU support)
+- **Disk Space:** ~500GB for full 50K-sample activation capture
+- **Git:** Required for cloning and submodule management
+
+### Clone Repository with Submodules
+
+This repository uses Git submodules for third-party dependencies (Qwen3-TTS, CosyVoice2, MSAE):
+
+```bash
+# Clone with submodules (recommended)
+git clone --recursive https://github.com/your-repo/phonetic-sae.git
+cd phonetic-sae
+
+# OR if you've already cloned without --recursive:
+git submodule update --init --recursive
+```
+
+**Submodules included:**
+- `third_party/Qwen3-TTS/` — Qwen3-TTS model code
+- `third_party/CosyVoice2/` — CosyVoice2 model code
+- `third_party/MSAE/` — Matryoshka SAE reference implementation
+
+Verify submodules are initialized:
+```bash
+git submodule status
+# Should show all with ✓ status (no '-' prefix)
+```
 
 ## Getting started
-1. Create a Python virtual environment (recommended Python 3.10/3.11).
+
+### 1. Environment Setup
+
+Create a Python virtual environment (recommended Python 3.10/3.11):
 ```bash
 python -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -r requirements-cpu.txt
 ```
 
-For GPU hosts, use `requirements-cuda.txt` and a compatible CUDA toolchain (cu121 recommended for this repo).
+For GPU hosts, use `requirements-cuda.txt` and a compatible CUDA toolchain (cu121 recommended):
+```bash
+pip install -r requirements-cuda.txt
+```
+
+### 2. Verify Dependencies
+
+```bash
+# Test imports
+python -c "
+from src.hooks import ActivationHook
+from src.sae import TopKSAE
+from src.alignment import QwenForcedAligner
+print('✅ All core imports successful')
+"
+
+# Verify CUDA (if using GPU)
+python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
+
+# Verify submodules
+git submodule status
+```
+
+### 3. Download Models
+
+Models are downloaded automatically on first use from HuggingFace:
+- Qwen3-TTS-0.6B (2.5GB)
+- CosyVoice2-0.5B (2GB)
+- Qwen3-ForcedAligner-0.6B (2.5GB)
+
+First run may take time for downloads. Set cache directory if needed:
+```bash
+export HF_HOME=/path/to/models/cache
+```
 
 ## Data Preparation
 
@@ -218,6 +296,90 @@ from src.sae import TopKSAE
 sae = TopKSAE.load("checkpoints/sae_qwen3tts/sae_final.pt")
 z_sparse, z_full = sae.encode(activations)
 x_recon = sae.decode(z_sparse)
+```
+
+## Troubleshooting
+
+### Git Submodule Issues
+
+**Problem: `fatal: No submodule mapping found in .gitmodules for path 'third_party/...'`**
+
+Solution: Initialize submodules properly:
+```bash
+git submodule update --init --recursive
+```
+
+**Problem: Submodule directory is empty**
+
+Solution: Fetch submodule contents:
+```bash
+git submodule update --init --recursive --depth 1
+```
+
+**Problem: Want to update submodules to latest**
+
+```bash
+git submodule update --remote --recursive
+git add .gitmodules third_party/
+git commit -m "Update submodules"
+```
+
+**Problem: Clone failed due to network issues**
+
+Try shallow clone first:
+```bash
+git clone --recursive --depth 1 https://github.com/your-repo/phonetic-sae.git
+```
+
+Then fetch full history:
+```bash
+git fetch --unshallow
+```
+
+### Model Download Issues
+
+**Problem: HuggingFace model download times out**
+
+Set custom cache and retry:
+```bash
+export HF_HOME=/path/to/fast/disk
+rm -rf $HF_HOME/*  # Clear cache
+python scripts/inspect_aligner.py  # Retry download
+```
+
+**Problem: CUDA/GPU issues**
+
+Fall back to CPU temporarily:
+```bash
+python scripts/pilot_capture.py --device cpu --num-samples 10
+```
+
+Check CUDA status:
+```bash
+python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name())"
+nvidia-smi  # Check GPU memory
+```
+
+### Import Errors
+
+**Problem: `ModuleNotFoundError: No module named 'src.alignment'`**
+
+Make sure submodules are initialized and you're in repo root:
+```bash
+pwd  # Should be: .../phonetic-sae
+ls src/alignment/  # Should show files
+python -c "from src.alignment import QwenForcedAligner"
+```
+
+**Problem: Submodule imports fail**
+
+Ensure submodules are initialized:
+```bash
+git submodule status
+# Should show something like:
+#  a1b2c3d4... third_party/Qwen3-TTS (detached HEAD)
+#  e5f6g7h8... third_party/CosyVoice2 (detached HEAD)
+#  i9j0k1l2... third_party/MSAE (detached HEAD)
 ```
 
 ## Docs

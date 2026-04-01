@@ -1,9 +1,6 @@
-# GPU / CUDA environment — target: cu121
-# Use appropriate find-links / extra-index-url for cu121 wheels (example below)
-# Example find-links: https://download.pytorch.org/whl/cu121
-
-torch==2.11.0+cu121  --find-links https://download.pytorch.org/whl/cu121
-torchaudio==2.11.0+cu121  --find-links https://download.pytorch.org/whl/cu121
+# GPU / CUDA environment — target: cu124
+torch==2.6.0  --index-url https://download.pytorch.org/whl/cu124
+torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu124
 transformers==4.57.3
 accelerate==1.12.0
 gradio==5.4.0
@@ -47,5 +44,6 @@ openai-whisper==20231117
 tqdm==4.66.5
 scikit-learn==1.5.2
 scipy==1.12.0
+ToJyutping
 
 # Optional / system packages: tensorrt, pynini, flash-attn (install via conda or vendor installers)
