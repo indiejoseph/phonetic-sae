@@ -7,8 +7,8 @@
 ## 🚀 Getting Started (Pick One)
 
 ### I just want to run it
-→ **[QUICK_START.md](QUICK_START.md)** (This page: 2 minutes to first run)
-
+→ **[QUICK_START.md](docs/QUICK_START.md)** (This page: 2 minutes to first run)
+0
 - Copy/paste commands
 - Common options table
 - Troubleshooting quick reference

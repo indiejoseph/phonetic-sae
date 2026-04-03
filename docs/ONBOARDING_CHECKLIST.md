@@ -172,7 +172,7 @@ After Phase 1 (Activation Mining) is complete:
 ## 📖 Documentation Map
 
 **Start Here:**
-- `START_HERE.md` — 5-minute overview
+- `docs/START_HERE.md` — 5-minute overview
 - `docs/PHASE1_QUICKSTART.md` — 30-minute detailed guide
 
 **References:**

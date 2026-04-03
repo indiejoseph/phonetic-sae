@@ -198,6 +198,53 @@ class Qwen3TTSWrapper:
 
         return accessor
 
+    def _get_language_code(self, language: str) -> str:
+        """Convert language name to language code.
+
+        Parameters
+        ----------
+        language : str
+            Language name (e.g., "English", "Chinese") or code (e.g., "en", "zh")
+
+        Returns
+        -------
+        str
+            Language code (e.g., "en", "zh", "yue")
+        """
+        # Map language names to codes
+        language_map = {
+            "english": "en",
+            "english-us": "en",
+            "english-gb": "en",
+            "chinese": "zh",
+            "mandarin": "zh",
+            "cantonese": "yue",
+            "japanese": "ja",
+            "spanish": "es",
+            "french": "fr",
+            "german": "de",
+            "korean": "ko",
+            "russian": "ru",
+            "portuguese": "pt",
+            "italian": "it",
+            "dutch": "nl",
+            "turkish": "tr",
+            "polish": "pl",
+        }
+
+        # If already a code (short form), return as-is
+        if len(language) <= 3:
+            return language
+
+        # Otherwise, try to map from name
+        lang_lower = language.lower()
+        if lang_lower in language_map:
+            return language_map[lang_lower]
+
+        # Default to the input if not found
+        logger.warning(f"Unknown language '{language}', using as-is")
+        return language
+
     def generate(
         self,
         text: str,
@@ -264,12 +311,31 @@ class Qwen3TTSWrapper:
             # Base mode: just text-to-speech without voice cloning
             else:
                 logger.info(f"Generating base TTS for: {text[:50]}...")
-                # Use the model's standard generate method for base mode
-                if hasattr(self.model, "generate"):
-                    wavs, sr = self.model.generate(text=text, language=language)
+                # For base mode, use voice cloning with empty/None reference audio
+                # This triggers the model's standard synthesis pathway
+                try:
+                    # Convert language name to language code if needed
+                    lang_code = self._get_language_code(language)
+
+                    wavs, sr = self.model.generate_voice_clone(
+                        text=text,
+                        language=lang_code,
+                        ref_audio=None,
+                        ref_text="",
+                    )
                     return {"waveform": wavs[0] if isinstance(wavs, list) else wavs, "sample_rate": sr}
-                else:
-                    raise ValueError("Model does not support base generation mode")
+                except Exception as e:
+                    # Fallback: try with empty string for ref_audio
+                    try:
+                        wavs, sr = self.model.generate_voice_clone(
+                            text=text,
+                            language=lang_code,
+                            ref_audio="",
+                            ref_text="",
+                        )
+                        return {"waveform": wavs[0] if isinstance(wavs, list) else wavs, "sample_rate": sr}
+                    except Exception as e2:
+                        raise ValueError(f"Base generation failed. Errors: {e}, {e2}")
 
         except Exception as e:
             logger.error(f"Generation failed: {e}")
