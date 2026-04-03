@@ -1,265 +1,168 @@
 #!/usr/bin/env python3
-"""Prepare combined dataset: HF audio + out.jsonl codec tokens.
+"""Prepare combined dataset: HF audio + Qwen3-TTS codec extraction.
 
-Merges indiejoseph/tts20250516 (audio, text, phone, spk_emb, etc.)
-with out.jsonl (pre-extracted Qwen3-TTS codec tokens) by matching text.
-
-Output: A parquet dataset with audio paths + codec + metadata, ready for
-activation capture with generate_voice_clone().
+Self-contained script that:
+1. Loads indiejoseph/tts20250516 from HuggingFace
+2. Extracts codec tokens from each sample's audio using Qwen3TTSTokenizer
+3. Adds codec + lang columns
+4. Saves with ds.save_to_disk() (preserves audio in Arrow format)
 
 Usage:
-    # Build full dataset (all languages)
+    # GPU (recommended for codec extraction speed):
     PYTHONPATH="." python scripts/prepare_dataset.py \
-        --hf-dataset indiejoseph/tts20250516 \
-        --codec-file data/out.jsonl \
-        --output data/combined_dataset
+        --output data/combined \
+        --device cuda
 
-    # Build small debug subset
+    # CPU (slow but works):
     PYTHONPATH="." python scripts/prepare_dataset.py \
-        --hf-dataset indiejoseph/tts20250516 \
-        --codec-file data/out.jsonl \
-        --output data/combined_dataset \
-        --lang en \
+        --output data/combined \
+        --device cpu \
         --max-samples 100
+
+    # Filter by language:
+    PYTHONPATH="." python scripts/prepare_dataset.py \
+        --output data/combined_yue \
+        --lang yue
 """
 
 import argparse
-import json
 import logging
-from collections import defaultdict
+import re
 from pathlib import Path
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-)
+import numpy as np
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 logger = logging.getLogger(__name__)
 
 
-def build_codec_index(codec_file: Path, target_lang: str = None):
-    """Index out.jsonl by text for fast lookup.
+def detect_language(text: str) -> str:
+    """Detect language from text content.
 
-    Args:
-        codec_file: Path to out.jsonl
-        target_lang: If set, only index this language (e.g., "en", "zh", "yue")
-
-    Returns:
-        dict mapping normalized text -> {codec, lang, speech_token}
+    Simple heuristic: if text contains CJK characters, check ratio.
+    Falls back to 'en' for Latin-script text.
     """
-    logger.info(f"Indexing {codec_file}...")
-    index = {}
-    lang_counts = defaultdict(int)
-    skipped = 0
-
-    with open(codec_file) as f:
-        for line_num, line in enumerate(f):
-            try:
-                row = json.loads(line)
-            except json.JSONDecodeError:
-                skipped += 1
-                continue
-
-            lang = row.get("lang", "")
-            if target_lang and lang != target_lang:
-                continue
-
-            text = row.get("text", "").strip()
-            if not text:
-                continue
-
-            # Normalize text for matching (strip whitespace, lowercase)
-            key = text.strip()
-            index[key] = {
-                "codec": row.get("codec"),
-                "speech_token": row.get("speech_token"),
-                "lang": lang,
-            }
-            lang_counts[lang] += 1
-
-    logger.info(f"Indexed {len(index)} records (skipped {skipped} parse errors)")
-    for lang, count in sorted(lang_counts.items()):
-        logger.info(f"  {lang}: {count}")
-
-    return index
-
-
-def prepare_dataset(args):
-    """Main dataset preparation."""
-    from datasets import load_dataset
-
-    output_dir = Path(args.output)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Step 1: Build codec index from out.jsonl
-    codec_index = build_codec_index(
-        Path(args.codec_file),
-        target_lang=args.lang,
+    cjk_pattern = re.compile(
+        r'[\u3000-\u303f\u3040-\u30ff\u3100-\u312f\u3400-\u4dbf'
+        r'\u4e00-\u9fff\uac00-\ud7af\uf900-\ufaff\uff00-\uffef]'
     )
-
-    # Step 2: Stream HF dataset and match with codec index
-    logger.info(f"Loading HF dataset: {args.hf_dataset}...")
-    ds = load_dataset(
-        args.hf_dataset,
-        split="train",
-        streaming=True,
-    )
-
-    matched = []
-    unmatched = 0
-    processed = 0
-    audio_dir = output_dir / "audio"
-    audio_dir.mkdir(exist_ok=True)
-
-    import soundfile as sf
-    import numpy as np
-
-    for row in ds:
-        text = row.get("text", "").strip()
-        if not text:
-            continue
-
-        # Match with codec index
-        codec_entry = codec_index.get(text)
-        if codec_entry is None:
-            unmatched += 1
-            continue
-
-        # Language filter
-        if args.lang and codec_entry["lang"] != args.lang:
-            continue
-
-        # Save audio to disk
-        audio = row["audio"]
-        audio_filename = f"sample_{processed:06d}.wav"
-        audio_path = audio_dir / audio_filename
-        sf.write(str(audio_path), audio["array"], audio["sampling_rate"])
-
-        # Build combined record
-        record = {
-            "id": processed,
-            "text": text,
-            "lang": codec_entry["lang"],
-            "audio_path": str(audio_path),
-            "sample_rate": audio["sampling_rate"],
-            "duration": row.get("duration", 0.0),
-            "phone": row.get("phone", ""),
-            "codec": codec_entry["codec"],
-            "speech_token": codec_entry["speech_token"],
-            "spk_emb": row.get("spk_emb"),
-        }
-        matched.append(record)
-        processed += 1
-
-        if processed % 1000 == 0:
-            logger.info(f"  Processed {processed} samples (unmatched: {unmatched})...")
-
-        if args.max_samples and processed >= args.max_samples:
-            logger.info(f"Reached max_samples={args.max_samples}, stopping.")
-            break
-
-    logger.info(f"\nMatching complete:")
-    logger.info(f"  Matched: {len(matched)}")
-    logger.info(f"  Unmatched: {unmatched}")
-
-    if not matched:
-        logger.error("No matched samples! Check that out.jsonl texts match HF dataset texts.")
-        return
-
-    # Step 3: Save combined dataset
-    # Save as JSONL (lightweight, easy to load)
-    jsonl_path = output_dir / "dataset.jsonl"
-    logger.info(f"Saving dataset to {jsonl_path}...")
-
-    # For JSONL, exclude large fields that are saved separately
-    with open(jsonl_path, "w") as f:
-        for record in matched:
-            # Save codec inline (it's the key addition)
-            # Save spk_emb as list of floats
-            row = {
-                "id": record["id"],
-                "text": record["text"],
-                "lang": record["lang"],
-                "audio_path": record["audio_path"],
-                "sample_rate": record["sample_rate"],
-                "duration": record["duration"],
-                "phone": record["phone"],
-                "codec": record["codec"],
-            }
-            f.write(json.dumps(row, ensure_ascii=False) + "\n")
-
-    # Save speaker embeddings separately (they're large float arrays)
-    spk_emb_path = output_dir / "spk_embeddings.jsonl"
-    with open(spk_emb_path, "w") as f:
-        for record in matched:
-            if record.get("spk_emb") is not None:
-                f.write(json.dumps({
-                    "id": record["id"],
-                    "spk_emb": record["spk_emb"],
-                }) + "\n")
-
-    # Save metadata
-    meta = {
-        "hf_dataset": args.hf_dataset,
-        "codec_file": args.codec_file,
-        "lang_filter": args.lang,
-        "total_samples": len(matched),
-        "unmatched": unmatched,
-        "lang_distribution": {},
-    }
-    lang_dist = defaultdict(int)
-    for r in matched:
-        lang_dist[r["lang"]] += 1
-    meta["lang_distribution"] = dict(lang_dist)
-
-    with open(output_dir / "metadata.json", "w") as f:
-        json.dump(meta, f, indent=2)
-
-    logger.info(f"\n{'=' * 60}")
-    logger.info(f"Dataset saved to {output_dir}")
-    logger.info(f"  dataset.jsonl:       {len(matched)} records (text + audio_path + codec)")
-    logger.info(f"  spk_embeddings.jsonl: speaker embeddings")
-    logger.info(f"  audio/:              {len(matched)} wav files")
-    logger.info(f"  metadata.json:       dataset info")
-    logger.info(f"  Language distribution: {dict(lang_dist)}")
-    logger.info(f"{'=' * 60}")
+    cjk_chars = len(cjk_pattern.findall(text))
+    total_chars = len(text.strip())
+    if total_chars == 0:
+        return "en"
+    if cjk_chars / total_chars > 0.3:
+        return "zh"  # Could be zh or yue — dataset's own lang field is more reliable
+    return "en"
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Prepare combined dataset: HF audio + out.jsonl codec"
+        description="Prepare combined dataset with Qwen3-TTS codec extraction"
+    )
+    parser.add_argument("--hf-dataset", default="indiejoseph/tts20250516")
+    parser.add_argument("--output", type=Path, default=Path("data/combined"))
+    parser.add_argument("--lang", default=None, help="Filter: en, zh, yue")
+    parser.add_argument("--max-samples", type=int, default=None)
+    parser.add_argument(
+        "--device",
+        choices=["cuda", "cpu"],
+        default="cuda",
+        help="Device for codec extraction",
     )
     parser.add_argument(
-        "--hf-dataset",
-        default="indiejoseph/tts20250516",
-        help="HuggingFace dataset ID",
+        "--tokenizer-id",
+        default="Qwen/Qwen3-TTS-Tokenizer-12Hz",
+        help="Qwen3-TTS tokenizer model ID",
     )
     parser.add_argument(
-        "--codec-file",
-        type=Path,
-        default=Path("data/out.jsonl"),
-        help="Path to out.jsonl with pre-extracted codec tokens",
-    )
-    parser.add_argument(
-        "--output",
-        type=Path,
-        default=Path("data/combined_dataset"),
-        help="Output directory",
-    )
-    parser.add_argument(
-        "--lang",
-        choices=["en", "zh", "yue", None],
-        default=None,
-        help="Filter to specific language (default: all)",
-    )
-    parser.add_argument(
-        "--max-samples",
+        "--batch-size",
         type=int,
-        default=None,
-        help="Max samples to process (for debugging)",
+        default=1,
+        help="Batch size for codec extraction (1 = sequential)",
     )
-
     args = parser.parse_args()
-    prepare_dataset(args)
+
+    # ── Step 1: Load HF dataset ──────────────────────────────────────
+    from datasets import load_dataset
+
+    logger.info(f"Loading dataset: {args.hf_dataset}")
+    ds = load_dataset(args.hf_dataset, split="train")
+    logger.info(f"Dataset loaded: {len(ds)} samples")
+
+    # Filter by language if the dataset has a 'lang' column
+    if args.lang and "lang" in ds.column_names:
+        ds = ds.filter(lambda x: x.get("lang") == args.lang)
+        logger.info(f"Filtered to lang={args.lang}: {len(ds)} samples")
+
+    if args.max_samples and args.max_samples < len(ds):
+        ds = ds.select(range(args.max_samples))
+        logger.info(f"Truncated to {args.max_samples} samples")
+
+    # ── Step 2: Load Qwen3-TTS tokenizer for codec extraction ────────
+    from qwen_tts import Qwen3TTSTokenizer
+
+    device_map = "cuda:0" if args.device == "cuda" else args.device
+    logger.info(f"Loading Qwen3-TTS tokenizer: {args.tokenizer_id} on {device_map}")
+    tokenizer = Qwen3TTSTokenizer.from_pretrained(
+        args.tokenizer_id,
+        device_map=device_map,
+    )
+    logger.info("Tokenizer loaded")
+
+    # ── Step 3: Extract codec tokens ─────────────────────────────────
+    errors = 0
+
+    def extract_codec(example):
+        """Extract codec tokens from audio using Qwen3TTSTokenizer."""
+        nonlocal errors
+        try:
+            audio = example["audio"]
+            audio_array = np.array(audio["array"], dtype=np.float32)
+            sr = audio["sampling_rate"]
+
+            enc = tokenizer.encode(audio_array, sr=sr)
+            # enc.audio_codes is List[torch.LongTensor], each shape (T, 16)
+            codes = enc.audio_codes[0].cpu().tolist()
+            example["codec"] = codes
+
+            # Add lang if not present
+            if "lang" not in example or not example.get("lang"):
+                example["lang"] = detect_language(example.get("text", ""))
+
+            return example
+        except Exception as e:
+            errors += 1
+            if errors <= 10:
+                logger.warning(f"Codec extraction failed: {e}")
+            elif errors == 11:
+                logger.warning("Suppressing further codec extraction warnings...")
+            example["codec"] = None
+            return example
+
+    logger.info("Extracting codec tokens from audio...")
+    ds = ds.map(extract_codec)
+
+    # Remove samples where codec extraction failed
+    before = len(ds)
+    ds = ds.filter(lambda x: x["codec"] is not None)
+    after = len(ds)
+    if before != after:
+        logger.info(f"Removed {before - after} samples with failed codec extraction")
+    logger.info(f"Final dataset: {after} samples, errors: {errors}")
+
+    # ── Step 4: Save ─────────────────────────────────────────────────
+    args.output.mkdir(parents=True, exist_ok=True)
+    ds.save_to_disk(str(args.output))
+    logger.info(f"Saved to {args.output}")
+
+    # Print summary
+    logger.info("Column names: " + ", ".join(ds.column_names))
+    if "lang" in ds.column_names:
+        from collections import Counter
+
+        lang_counts = Counter(ds["lang"])
+        for lang, count in sorted(lang_counts.items()):
+            logger.info(f"  {lang}: {count}")
 
 
 if __name__ == "__main__":
