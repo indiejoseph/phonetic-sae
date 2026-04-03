@@ -134,7 +134,8 @@ def debug_qwen3tts(args):
 
     # Step 4: Run inference
     # Map lang code to Qwen3-TTS language name
-    lang_map = {"en": "English", "zh": "Chinese", "yue": "Cantonese"}
+    # Note: Qwen3-TTS has no "Cantonese" — yue falls under "Chinese"
+    lang_map = {"en": "English", "zh": "Chinese", "yue": "Chinese"}
 
     logger.info("=" * 60)
     logger.info(f"Running inference (max_tokens={args.max_tokens})...")

@@ -133,6 +133,11 @@ class ActivationHook:
                 captured = captured.to(dtype=self.dtype)
             captured = captured.to(self.device)
 
+            # Flatten to 2D (tokens, d_model) so autoregressive steps
+            # with varying seq_len can be concatenated later.
+            if captured.dim() == 3:
+                captured = captured.reshape(-1, captured.shape[-1])
+
             self._buffers[layer_idx].append(captured)
 
         return hook_fn
@@ -190,11 +195,8 @@ class ActivationHook:
         result = {}
         for layer_idx, tensors in self._buffers.items():
             if tensors:
-                # Concatenate along batch dimension, then flatten (batch, seq, d) → (N, d)
+                # All tensors are already 2D (tokens, d_model) from hook_fn
                 stacked = torch.cat(tensors, dim=0)
-                if stacked.dim() == 3:
-                    # (batch, seq_len, d_model) → (batch * seq_len, d_model)
-                    stacked = stacked.reshape(-1, stacked.shape[-1])
                 result[layer_idx] = stacked
             else:
                 result[layer_idx] = torch.empty(0)
@@ -221,8 +223,6 @@ class ActivationHook:
             if not tensors:
                 continue
             stacked = torch.cat(tensors, dim=0)
-            if stacked.dim() == 3:
-                stacked = stacked.reshape(-1, stacked.shape[-1])
             path = out_dir / f"{prefix}_layer{layer_idx}_batch{self._batch_counter}.pt"
             torch.save(stacked.cpu(), path)
             written[layer_idx] = path
